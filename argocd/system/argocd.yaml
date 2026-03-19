@@ -29,35 +29,20 @@ metadata:
 spec:
   project: default
 
-  source:
-    repoURL: https://github.com/roshanvrazak/homelab.git
-    targetRevision: HEAD
-    path: system/argocd  # Contains: namespace.yaml and values.yaml
-
-    # We have a mix of plain YAML (namespace.yaml) and Helm values here.
-    # ArgoCD handles this by treating the directory as a Helm chart source
-    # when a Chart.yaml is present, or raw YAML when it's not.
-    # For the values.yaml to work, we reference the chart separately:
-    helm:
-      releaseName: argocd
+  # Multi-source: one source for the Helm chart, one for our values file.
+  # This ensures ArgoCD pulls the chart from the Helm repo and overlays
+  # our values.yaml from the Git repo (single-source can't do both).
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
       chart: argo-cd
-      version: "7.7.3"
-      repo: https://argoproj.github.io/argo-helm
-      valueFiles:
-        - values.yaml  # Relative to the path above (system/argocd/values.yaml)
-
-  # ALTERNATIVE SOURCE FORMAT: if the above doesn't work, use this pattern:
-  # sources:
-  #   - repoURL: https://argoproj.github.io/argo-helm
-  #     chart: argo-cd
-  #     targetRevision: "7.7.3"
-  #     helm:
-  #       releaseName: argocd
-  #       valueFiles:
-  #         - $values/system/argocd/values.yaml
-  #   - repoURL: https://github.com/roshanvrazak/homelab.git
-  #     targetRevision: HEAD
-  #     ref: values
+      targetRevision: "7.7.3"
+      helm:
+        releaseName: argocd
+        valueFiles:
+          - $values/system/argocd/values.yaml
+    - repoURL: https://github.com/roshanvrazak/homelab.git
+      targetRevision: HEAD
+      ref: values
 
   destination:
     server: https://kubernetes.default.svc
