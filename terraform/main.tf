@@ -35,7 +35,7 @@ provider "proxmox" {
   endpoint = var.proxmox_endpoint
 
   # API token: format is "USER@REALM!TOKENID=SECRET"
-  # e.g. "root@pam!terraform=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  # e.g. "root@pam!terraform=3988d338-1ebc-4dab-ba82-a619c7a30cb0"
   api_token = var.proxmox_api_token
 
   # Skip TLS verification — needed because Proxmox uses a self-signed cert by default
@@ -48,8 +48,8 @@ provider "proxmox" {
     agent    = true  # Use SSH agent (ssh-add your key first)
     username = var.proxmox_ssh_username
 
-    # If you're not using an SSH agent, uncomment and set the password:
-    # password = var.proxmox_ssh_password
+    # Password fallback if SSH agent doesn't have a key for Proxmox
+    password = var.proxmox_ssh_password
 
     # Or use a specific private key file:
     # private_key = file("~/.ssh/id_ed25519")
@@ -290,23 +290,20 @@ resource "proxmox_virtual_environment_vm" "k3s_node" {
     # Proxmox will import the image and resize it to vm_disk_size_gb
     file_id = proxmox_virtual_environment_download_file.ubuntu_cloud_image.id
 
+    # Explicitly set the file format — "raw" works with LVM-thin and directory storage
+    # This prevents format detection issues during the import step
+    file_format = "raw"
+
     # Storage pool where this disk is created
     datastore_id = var.vm_storage
 
     # Disk size in GB — the cloud image (~2GB) gets expanded to this size
     size = var.vm_disk_size_gb
 
-    # iothread: use a dedicated IO thread for this disk
-    # Significantly improves disk performance, especially for databases
-    iothread = true
-
     # discard: send TRIM/DISCARD commands to the underlying storage
     # Allows the host SSD to reclaim freed blocks inside the VM
     # Only effective if the storage supports discard (LVM-thin, ZFS, etc.)
     discard = "on"
-
-    # SSD emulation: tell the guest OS this is an SSD (enables more TRIM)
-    ssd = true
   }
 
   # ==========================================================================
@@ -316,8 +313,9 @@ resource "proxmox_virtual_environment_vm" "k3s_node" {
   # drive (traditionally on IDE2 or SCSI). Proxmox creates this automatically
   # when we define the initialization block.
   initialization {
-    # Storage for the auto-generated cloud-init ISO
-    datastore_id = var.vm_storage_iso
+    # Storage for the auto-generated cloud-init drive
+    # Must support 'images' content type — local-lvm works, plain 'local' does not
+    datastore_id = var.vm_storage
 
     # Network configuration applied by cloud-init
     # This sets the VM's static IP at the OS level via netplan
@@ -331,7 +329,7 @@ resource "proxmox_virtual_environment_vm" "k3s_node" {
 
     # DNS configuration
     dns {
-      servers = join(" ", var.vm_dns_servers)
+      servers = var.vm_dns_servers
       domain  = "homelab.local"
     }
 

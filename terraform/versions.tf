@@ -18,7 +18,7 @@
 terraform {
   # Minimum Terraform CLI version required
   # 1.6+ introduced test framework and minor improvements; widely available
-  required_version = ">= 1.6"
+  required_version = ">= 1.5"
 
   required_providers {
     proxmox = {
