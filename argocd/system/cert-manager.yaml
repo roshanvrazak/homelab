@@ -34,7 +34,7 @@ spec:
         valueFiles:
           - $values/system/cert-manager/values.yaml
 
-    - repoURL: https://github.com/CHANGEME/homelab.git
+    - repoURL: https://github.com/roshanvrazak/homelab.git
       targetRevision: HEAD
       ref: values
 

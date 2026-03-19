@@ -33,7 +33,7 @@ spec:
         valueFiles:
           - $values/apps/gitea/values.yaml
 
-    - repoURL: https://github.com/CHANGEME/homelab.git
+    - repoURL: https://github.com/roshanvrazak/homelab.git
       targetRevision: HEAD
       ref: values
 

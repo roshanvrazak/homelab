@@ -108,10 +108,10 @@ fi
 # STEP 3 — Update REPO_URL placeholders in manifests
 # =============================================================================
 # ArgoCD manifests and install scripts use the placeholder
-#   https://github.com/CHANGEME/homelab.git
+#   https://github.com/roshanvrazak/homelab.git
 # which should be replaced with the actual GitHub URL.
 
-PLACEHOLDER="https://github.com/CHANGEME/homelab.git"
+PLACEHOLDER="https://github.com/roshanvrazak/homelab.git"
 ACTUAL_URL="https://github.com/$GH_USERNAME/$REPO_NAME.git"
 
 if grep -r "$PLACEHOLDER" . --include="*.yaml" --include="*.sh" --include="*.md" -l &>/dev/null; then

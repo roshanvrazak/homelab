@@ -1,4 +1,4 @@
-# Homelab
+z# Homelab
 
 A single-node Kubernetes homelab running on Proxmox, managed with GitOps (ArgoCD) and Infrastructure as Code.
 

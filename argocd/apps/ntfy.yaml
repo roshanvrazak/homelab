@@ -32,7 +32,7 @@ spec:
         valueFiles:
           - $values/apps/ntfy/values.yaml
 
-    - repoURL: https://github.com/CHANGEME/homelab.git
+    - repoURL: https://github.com/roshanvrazak/homelab.git
       targetRevision: HEAD
       ref: values
 

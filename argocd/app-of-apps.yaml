@@ -18,7 +18,7 @@
 #   - Self-healing: ArgoCD will revert any manual changes to match the repo
 #   - Auditable: every change goes through Git (PR review, commit history)
 #
-# IMPORTANT: Replace https://github.com/CHANGEME/homelab.git with your actual
+# IMPORTANT: Replace https://github.com/roshanvrazak/homelab.git with your actual
 # GitHub repo URL before applying. Or run setup-github-repo.sh which does it
 # for you automatically.
 #
@@ -49,7 +49,7 @@ spec:
 
   source:
     # IMPORTANT: Replace this placeholder with your actual GitHub repo URL
-    repoURL: https://github.com/CHANGEME/homelab.git
+    repoURL: https://github.com/roshanvrazak/homelab.git
 
     # targetRevision controls which Git ref to track:
     # - HEAD: always use the latest commit on the default branch

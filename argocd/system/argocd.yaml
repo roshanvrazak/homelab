@@ -30,7 +30,7 @@ spec:
   project: default
 
   source:
-    repoURL: https://github.com/CHANGEME/homelab.git
+    repoURL: https://github.com/roshanvrazak/homelab.git
     targetRevision: HEAD
     path: system/argocd  # Contains: namespace.yaml and values.yaml
 
@@ -55,7 +55,7 @@ spec:
   #       releaseName: argocd
   #       valueFiles:
   #         - $values/system/argocd/values.yaml
-  #   - repoURL: https://github.com/CHANGEME/homelab.git
+  #   - repoURL: https://github.com/roshanvrazak/homelab.git
   #     targetRevision: HEAD
   #     ref: values
 

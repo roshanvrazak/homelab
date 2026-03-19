@@ -285,7 +285,7 @@ kubectl get nodes -o wide
 echo ""
 echo "Next steps:"
 echo "  1. Make sure you've updated the REPO_URL placeholder in argocd/ manifests"
-echo "  2. Run: bash scripts/install-argocd.sh https://github.com/CHANGEME/homelab.git"
+echo "  2. Run: bash scripts/install-argocd.sh https://github.com/roshanvrazak/homelab.git"
 echo "  3. ArgoCD will then deploy all other services automatically"
 echo ""
 echo "Useful commands:"

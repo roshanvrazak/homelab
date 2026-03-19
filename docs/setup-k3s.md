@@ -210,5 +210,5 @@ sudo systemctl stop k3s
 Proceed to [install-argocd.sh](../scripts/install-argocd.sh) or run:
 
 ```bash
-bash scripts/install-argocd.sh https://github.com/CHANGEME/homelab.git
+bash scripts/install-argocd.sh https://github.com/roshanvrazak/homelab.git
 ```

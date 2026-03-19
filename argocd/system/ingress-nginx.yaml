@@ -39,7 +39,7 @@ spec:
           - $values/system/ingress-nginx/values.yaml
 
     # Source 2: Our Git repo (used only for the values file reference above)
-    - repoURL: https://github.com/CHANGEME/homelab.git
+    - repoURL: https://github.com/roshanvrazak/homelab.git
       targetRevision: HEAD
       ref: values  # "ref: values" makes this repo available as "$values" above
 
