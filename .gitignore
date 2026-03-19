@@ -31,11 +31,11 @@ secret.yaml
 *.secret
 
 # --- Terraform ---
-*.tfstate              # Terraform state file — contains sensitive data and resource IDs
-*.tfstate.backup       # Terraform state backup
-.terraform/            # Provider plugins downloaded by terraform init (large, reproducible)
+**/*.tfstate           # Terraform state file — contains sensitive data and resource IDs
+**/*.tfstate.backup    # Terraform state backup
+**/.terraform/         # Provider plugins downloaded by terraform init (large, reproducible)
+**/terraform.tfvars    # Your actual variable values — contains API tokens and SSH keys
 # NOTE: .terraform.lock.hcl is NOT ignored — commit it for reproducible provider versions
-terraform.tfvars       # Your actual variable values — contains API tokens and SSH keys
 # NOTE: terraform.tfvars.example IS committed — it has no real secrets
 
 # --- Ansible (if you add automation later) ---
