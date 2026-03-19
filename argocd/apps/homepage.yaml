@@ -1,0 +1,48 @@
+# =============================================================================
+# Homepage — User Application Manifest
+# Sync Wave: 0
+# =============================================================================
+#
+# Homepage is a dashboard that aggregates links and live stats from your
+# homelab services. It auto-discovers services via Kubernetes annotations.
+#
+# Note: The homepage Helm chart is available from the jameswynn community chart repo.
+# Chart: https://jameswynn.github.io/helm-charts
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homepage
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://jameswynn.github.io/helm-charts
+      chart: homepage
+      targetRevision: "2.0.1"
+      helm:
+        releaseName: homepage
+        valueFiles:
+          - $values/apps/homepage/values.yaml
+
+    - repoURL: https://github.com/CHANGEME/homelab.git
+      targetRevision: HEAD
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: homepage
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

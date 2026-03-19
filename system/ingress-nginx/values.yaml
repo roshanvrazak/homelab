@@ -1,0 +1,95 @@
+# =============================================================================
+# ingress-nginx Helm Values — Single-Node Homelab Configuration
+# Chart: ingress-nginx/ingress-nginx
+# Version: 4.11.3
+# Docs: https://kubernetes.github.io/ingress-nginx/
+# =============================================================================
+#
+# ingress-nginx is an Ingress controller that uses NGINX as a reverse proxy
+# to route HTTP/HTTPS traffic to Kubernetes services based on hostname/path rules.
+#
+# In this homelab setup:
+#   - External traffic comes in on port 80 of the VM's IP
+#   - ingress-nginx routes it to the correct service based on hostname
+#   - e.g., argocd.homelab.local → argocd-server service
+#
+# K3s includes ServiceLB (a lightweight MetalLB-like controller) that assigns
+# an external IP from the node's IP to LoadBalancer-type services. This makes
+# ingress-nginx accessible on the host's IP without needing a separate LB.
+#
+# RAM target: ~100MB
+# =============================================================================
+
+controller:
+  # Single replica — no HA needed for a homelab single-node setup
+  replicaCount: 1
+
+  # Use the host network's ports directly
+  # K3s ServiceLB will assign the node's IP to the LoadBalancer service
+  service:
+    type: LoadBalancer  # K3s ServiceLB will handle this — no MetalLB needed
+
+    # Annotations for K3s ServiceLB
+    annotations:
+      # Nothing extra needed for K3s ServiceLB — it auto-detects LoadBalancer services
+
+  resources:
+    requests:
+      cpu: 50m      # ingress-nginx is event-driven; very low idle CPU
+      memory: 90Mi  # NGINX is memory-efficient at homelab scale
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  # ingress-nginx configuration
+  config:
+    # Use a real IP address for logging (strips proxy headers from internal sources)
+    use-real-ip: "false"
+
+    # Increase proxy timeouts for services that take a while to respond
+    # (useful for Gitea on first run, ArgoCD during heavy syncs)
+    proxy-read-timeout: "120"
+    proxy-send-timeout: "120"
+    proxy-connect-timeout: "15"
+
+    # Enable gzip compression for better performance
+    use-gzip: "true"
+
+    # Increase client body size limit — useful for Git pushes to Gitea
+    # (0 = unlimited, use a sane default like 100m)
+    proxy-body-size: "100m"
+
+    # Log format — simplified for homelab readability
+    log-format-upstream: '$remote_addr - "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"'
+
+  # Prometheus metrics scraping
+  metrics:
+    enabled: true  # Expose NGINX metrics for Grafana dashboards
+    serviceMonitor:
+      enabled: false  # Enable after kube-prometheus-stack is running
+
+  # Admission webhook — validates ingress objects before they're applied
+  # Disable for simplicity in a homelab (reduces startup complexity)
+  admissionWebhooks:
+    enabled: false
+
+  # Pod disruption budget — not needed for single node
+  podDisruptionBudget:
+    enabled: false
+
+  # Autoscaling — disabled for single-node, fixed 1 replica
+  autoscaling:
+    enabled: false
+
+  # Node selector — ensures nginx runs on our single node (always true)
+  nodeSelector:
+    kubernetes.io/os: linux
+
+  # Toleration for control-plane taint (K3s single-node has no taint by default,
+  # but this future-proofs if you add taints later)
+  tolerations: []
+
+# Default backend — shown when no ingress rule matches the request
+# Disable to save resources; nginx will return a default 404 page instead
+defaultBackend:
+  enabled: false

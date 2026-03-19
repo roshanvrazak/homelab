@@ -1,0 +1,48 @@
+# =============================================================================
+# ntfy — User Application Manifest
+# Sync Wave: 0
+# =============================================================================
+#
+# ntfy is a simple push notification server.
+# It can receive webhooks from Alertmanager and forward them to your phone.
+#
+# The ntfy Helm chart is from the alexjustesen community chart repository.
+# Chart: https://alexjustesen.github.io/helm-charts
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ntfy
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://alexjustesen.github.io/helm-charts
+      chart: ntfy
+      targetRevision: "1.2.1"
+      helm:
+        releaseName: ntfy
+        valueFiles:
+          - $values/apps/ntfy/values.yaml
+
+    - repoURL: https://github.com/CHANGEME/homelab.git
+      targetRevision: HEAD
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ntfy
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

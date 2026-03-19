@@ -1,0 +1,66 @@
+# =============================================================================
+# .editorconfig — Consistent code formatting across editors and IDEs
+# =============================================================================
+# EditorConfig helps maintain consistent coding styles across different editors
+# (VS Code, IntelliJ, Vim, Emacs, etc.) and contributors.
+# Most editors support it natively or via a plugin: https://editorconfig.org/
+# =============================================================================
+
+# Top-most EditorConfig file — stop searching parent directories
+root = true
+
+# --- Default settings for all files ---
+[*]
+# UTF-8 encoding for all files (consistent across platforms)
+charset = utf-8
+
+# LF (Unix) line endings — prevents CRLF issues on Windows/Linux interop
+# This is especially important for shell scripts and Kubernetes manifests
+end_of_line = lf
+
+# Insert a newline at the end of every file (POSIX standard)
+insert_final_newline = true
+
+# Remove trailing whitespace (keeps diffs clean)
+trim_trailing_whitespace = true
+
+# --- YAML files (Kubernetes manifests, Helm values, ArgoCD apps) ---
+[*.yaml]
+indent_style = space
+indent_size = 2   # Kubernetes convention: 2 spaces for YAML indentation
+
+[*.yml]
+indent_style = space
+indent_size = 2
+
+# --- Shell scripts ---
+[*.sh]
+indent_style = space
+indent_size = 2
+
+# --- Markdown documentation ---
+[*.md]
+# Markdown uses trailing spaces for line breaks — don't strip them
+trim_trailing_whitespace = false
+indent_style = space
+indent_size = 2
+
+# --- Makefile — MUST use tabs (Make requires literal tab characters) ---
+[Makefile]
+indent_style = tab
+indent_size = 4
+
+# --- JSON files ---
+[*.json]
+indent_style = space
+indent_size = 2
+
+# --- Dockerfile ---
+[Dockerfile*]
+indent_style = space
+indent_size = 2
+
+# --- .env files (should never be committed, but just in case) ---
+[.env*]
+indent_style = space
+indent_size = 2

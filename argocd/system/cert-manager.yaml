@@ -1,0 +1,50 @@
+# =============================================================================
+# cert-manager — System Application Manifest
+# Sync Wave: -1
+# =============================================================================
+#
+# cert-manager handles TLS certificate issuance and renewal.
+# It must be installed before any Application that uses TLS via cert-manager
+# annotations on their Ingress objects.
+#
+# NOTE: For the initial homelab setup we use plain HTTP (no TLS).
+# cert-manager is installed but ClusterIssuers are configured manually.
+# See system/cert-manager/values.yaml for the ClusterIssuer YAML examples.
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://charts.jetstack.io
+      chart: cert-manager
+      targetRevision: "1.16.2"
+      helm:
+        releaseName: cert-manager
+        valueFiles:
+          - $values/system/cert-manager/values.yaml
+
+    - repoURL: https://github.com/CHANGEME/homelab.git
+      targetRevision: HEAD
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

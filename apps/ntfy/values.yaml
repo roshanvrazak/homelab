@@ -1,0 +1,92 @@
+# =============================================================================
+# ntfy Helm Values — Single-Node Homelab Configuration
+# Chart: alexjustesen/ntfy (community chart)
+# Docs: https://docs.ntfy.sh/
+# =============================================================================
+#
+# ntfy is a simple, self-hosted pub/sub notification service.
+# You can send push notifications to your phone/browser from:
+#   - Shell scripts (curl)
+#   - Alertmanager webhooks
+#   - Any HTTP client
+#
+# Example usage:
+#   curl -d "Backup completed!" ntfy.homelab.local/homelab-alerts
+#
+# The ntfy app is available for Android, iOS, and as a browser extension.
+# Subscribe to your topics (e.g., "homelab-alerts") to receive notifications.
+#
+# RAM target: ~50MB
+# =============================================================================
+
+image:
+  repository: binwiederhier/ntfy
+  tag: v2.11.0
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi  # ntfy is extremely lightweight
+  limits:
+    cpu: 100m
+    memory: 64Mi
+
+# =============================================================================
+# Ingress — expose ntfy at ntfy.homelab.local
+# =============================================================================
+ingress:
+  main:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      # Required for ntfy's Server-Sent Events (SSE) to work through nginx
+      # SSE keeps an HTTP connection open for push notifications
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-buffering: "off"  # Don't buffer SSE events
+    hosts:
+      - host: ntfy.homelab.local
+        paths:
+          - path: /
+            pathType: Prefix
+
+# =============================================================================
+# Persistent storage for ntfy message cache
+# =============================================================================
+persistence:
+  data:
+    enabled: true
+    storageClass: local-path
+    size: 1Gi  # ntfy message cache — 1GB is more than enough
+    accessModes:
+      - ReadWriteOnce
+    mountPath: /var/cache/ntfy
+
+# =============================================================================
+# ntfy server configuration
+# =============================================================================
+config:
+  # Base URL for ntfy — used in notification links
+  base-url: "http://ntfy.homelab.local"
+
+  # Cache — stores messages so subscribers that reconnect can catch up
+  cache-file: "/var/cache/ntfy/cache.db"       # SQLite cache file
+  cache-duration: "12h"                          # How long to keep messages
+
+  # Authentication — disabled for local homelab (anyone on LAN can publish/subscribe)
+  # Enable if you expose ntfy outside your network:
+  # auth-file: "/var/cache/ntfy/auth.db"
+  # auth-default-access: "deny-all"
+
+  # Rate limiting — defaults are fine for homelab
+  visitor-request-limit-burst: 60
+  visitor-request-limit-replenish: "5s"
+
+  # Behind a reverse proxy (nginx) — trust the X-Forwarded-For header
+  behind-proxy: true
+
+  # Log level
+  log-level: "info"

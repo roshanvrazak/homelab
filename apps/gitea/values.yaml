@@ -1,0 +1,156 @@
+# =============================================================================
+# Gitea Helm Values — Single-Node Homelab Configuration
+# Chart: gitea-charts/gitea
+# Version: 10.6.0
+# Docs: https://gitea.com/gitea/helm-chart
+# =============================================================================
+#
+# Gitea is a lightweight, self-hosted Git service (similar to GitHub/GitLab).
+# It provides: repositories, issues, pull requests, CI (Gitea Actions), packages.
+#
+# For a homelab, Gitea is great because:
+#   - Very low resource usage compared to GitLab
+#   - SQLite backend means no separate database needed
+#   - Can mirror your GitHub repos locally
+#   - Can act as a secondary remote for your homelab repo
+#
+# RAM target: ~200MB
+# Storage: 5GB (for Git repos + Gitea data)
+# =============================================================================
+
+# =============================================================================
+# Gitea application configuration
+# =============================================================================
+gitea:
+  admin:
+    # Admin user created on first start
+    # CHANGE THESE before deploying!
+    username: "gitea-admin"
+    password: "changeme123!"  # Change this immediately after first login
+    email: "admin@homelab.local"
+
+  config:
+    # APP_NAME is shown in the browser tab and emails
+    APP_NAME: "Homelab Git"
+
+    server:
+      # Domain where Gitea is accessible
+      DOMAIN: "gitea.homelab.local"
+      ROOT_URL: "http://gitea.homelab.local"
+      HTTP_PORT: 3000        # Internal pod port (not the external port)
+      SSH_PORT: 22           # SSH clone port (mapped via NodePort or LoadBalancer)
+      SSH_LISTEN_PORT: 2222  # Internal SSH listen port (avoid root requirement)
+      DISABLE_SSH: false     # Enable SSH for git clone
+
+    database:
+      # SQLite — no external database required
+      # Data stored in the PVC at /data/gitea/gitea.db
+      # Limitation: SQLite doesn't support concurrent writes well, but for a
+      # personal homelab this is completely fine.
+      DB_TYPE: sqlite3
+
+    repository:
+      # Default branch name for new repos
+      DEFAULT_BRANCH: main
+      # Enable repository topics/labels
+      ENABLE_PUSH_CREATE_USER: true
+      ENABLE_PUSH_CREATE_ORG: true
+
+    service:
+      # Disable public user registration (personal homelab — just admin creates users)
+      DISABLE_REGISTRATION: false  # Set to true after creating your accounts
+      REQUIRE_SIGNIN_VIEW: false   # Allow unauthenticated viewing of public repos
+
+    mailer:
+      ENABLED: false  # No email server — disable for simplicity
+
+    cache:
+      ADAPTER: memory  # In-memory cache — no Redis needed for single user
+
+    session:
+      PROVIDER: memory  # In-memory sessions — fine for low user count
+
+    log:
+      LEVEL: Info  # Debug/Trace would flood logs; Info is appropriate
+
+    # Disable telemetry/phone-home
+    other:
+      SHOW_FOOTER_VERSION: true
+
+  # Additional ini sections can be added here
+  # See all options: https://docs.gitea.com/administration/config-cheat-sheet
+
+# =============================================================================
+# Deployment settings
+# =============================================================================
+replicaCount: 1  # Single replica — SQLite doesn't support multiple writers
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi  # Allow more headroom for git operations (clones, pushes)
+
+# =============================================================================
+# Persistent storage
+# =============================================================================
+persistence:
+  enabled: true
+  storageClass: local-path  # K3s default storage class
+  size: 5Gi                  # 5GB for Git repos and Gitea data
+  accessModes:
+    - ReadWriteOnce
+
+# =============================================================================
+# Ingress — exposes Gitea at gitea.homelab.local
+# =============================================================================
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    # Large uploads for git push (repositories can be big)
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"  # Unlimited upload size
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+  hosts:
+    - host: gitea.homelab.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+# =============================================================================
+# SSH service for git clone via SSH
+# =============================================================================
+service:
+  http:
+    type: ClusterIP  # HTTP goes through ingress-nginx
+    port: 3000
+
+  ssh:
+    type: LoadBalancer  # SSH needs its own LoadBalancer port (not going through HTTP ingress)
+    port: 22
+    targetPort: 2222
+    # K3s ServiceLB will handle this — SSH will be accessible on VM_IP:22
+    # Note: this may conflict if port 22 is also used for SSH to the VM itself
+    # In that case, change port to 2222 and connect with: git clone ssh://git@gitea.homelab.local:2222/...
+    annotations: {}
+
+# =============================================================================
+# Database — using built-in SQLite (no external DB)
+# =============================================================================
+postgresql:
+  enabled: false  # Disable PostgreSQL — we use SQLite instead
+
+postgresql-ha:
+  enabled: false  # Definitely disable HA postgres
+
+# =============================================================================
+# Redis/Valkey — disable, use in-memory cache instead
+# =============================================================================
+redis-cluster:
+  enabled: false
+
+valkey-cluster:
+  enabled: false

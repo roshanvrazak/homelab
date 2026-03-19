@@ -1,0 +1,49 @@
+# =============================================================================
+# Gitea — User Application Manifest
+# Sync Wave: 0 (deploys AFTER system apps at wave -1)
+# =============================================================================
+#
+# Gitea depends on:
+#   - ingress-nginx (wave -1): needs the ingress controller for web access
+#   - local-path-provisioner (built into K3s): needs storage for SQLite + repos
+#
+# The sync wave ordering (system=-1, apps=0) ensures ingress-nginx is running
+# before Gitea tries to create its Ingress object.
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitea
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://dl.gitea.com/charts/
+      chart: gitea
+      targetRevision: "10.6.0"
+      helm:
+        releaseName: gitea
+        valueFiles:
+          - $values/apps/gitea/values.yaml
+
+    - repoURL: https://github.com/CHANGEME/homelab.git
+      targetRevision: HEAD
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitea
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

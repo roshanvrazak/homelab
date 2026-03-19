@@ -1,0 +1,276 @@
+# =============================================================================
+# kube-prometheus-stack Helm Values — Single-Node Homelab Configuration
+# Chart: prometheus-community/kube-prometheus-stack
+# Version: 67.4.0
+# Docs: https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack
+# =============================================================================
+#
+# kube-prometheus-stack is a collection of:
+#   - Prometheus Operator (manages Prometheus instances declaratively)
+#   - Prometheus (metrics collection and storage)
+#   - Alertmanager (alert routing)
+#   - Grafana (visualization and dashboards)
+#   - kube-state-metrics (K8s object metrics)
+#   - node-exporter (host-level metrics: CPU, RAM, disk, network)
+#   - Various Kubernetes monitoring dashboards and alert rules
+#
+# This is the heaviest component in the stack. We tune it aggressively for
+# the 12GB RAM constraint. Main savings:
+#   - Prometheus: 10GB storage limit, 7d retention, reduced memory
+#   - No remote write (no external Prometheus federation)
+#   - Alertmanager: minimal config (optional — can be disabled)
+#   - Grafana: single replica, lightweight storage
+#
+# RAM target: ~1GB total (Prometheus ~500MB, Grafana ~200MB, rest ~300MB)
+# =============================================================================
+
+# =============================================================================
+# Prometheus Operator — manages Prometheus/Alertmanager instances via CRDs
+# =============================================================================
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  # Admission webhooks validate PrometheusRule and ServiceMonitor objects
+  admissionWebhooks:
+    enabled: true  # Keep enabled — prevents bad rules from breaking Prometheus
+
+# =============================================================================
+# Prometheus — time-series metrics database
+# =============================================================================
+prometheus:
+  prometheusSpec:
+    # Retention: how long to keep metrics data
+    # 7 days is sufficient for homelab troubleshooting. Longer = more disk.
+    retention: 7d
+
+    # Retention size: maximum disk space for metrics data
+    # 10GB keeps us well under the 200GB disk budget
+    retentionSize: 10GB
+
+    # Number of replicas — 1 for single-node (HA would need 2+)
+    replicas: 1
+
+    resources:
+      requests:
+        cpu: 100m      # Prometheus idle CPU is low
+        memory: 256Mi  # Prometheus uses RAM for query caching; 256Mi is reasonable
+      limits:
+        cpu: 1000m     # Allow bursting during scrapes/queries
+        memory: 1Gi   # Don't let it consume all RAM on the node
+
+    # Storage for Prometheus metrics (PersistentVolumeClaim)
+    # Uses local-path-provisioner (K3s default storage class)
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path  # K3s default storage class
+          accessModes:
+            - ReadWriteOnce  # Single-node can only be ReadWriteOnce
+          resources:
+            requests:
+              storage: 10Gi  # Matches retentionSize — Prometheus manages within this
+
+    # Scrape interval — how often Prometheus collects metrics
+    # 30s is the default. Lower = more data, more RAM/CPU.
+    scrapeInterval: "30s"
+
+    # Evaluation interval — how often alerting rules are evaluated
+    evaluationInterval: "30s"
+
+    # Enable all ServiceMonitors in the cluster automatically
+    # (This means any service that creates a ServiceMonitor gets scraped)
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - prometheus.homelab.local
+    paths:
+      - /
+
+# =============================================================================
+# Alertmanager — routes alerts to notification channels
+# =============================================================================
+alertmanager:
+  # Set to false if you don't want alerts at all (saves ~100MB RAM)
+  enabled: true
+
+  alertmanagerSpec:
+    replicas: 1
+
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+    # Storage for alertmanager state (silences, etc.)
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi  # Alertmanager state is tiny
+
+  # Default alertmanager config — sends alerts nowhere (just logs them)
+  # Configure this when you're ready to receive alerts (e.g., via ntfy webhook)
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['namespace', 'alertname']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: 'null'  # Drop all alerts by default
+      routes:
+        - matchers:
+            - alertname = "Watchdog"
+          receiver: 'null'  # Watchdog is a "always firing" test alert — suppress it
+    receivers:
+      - name: 'null'  # Null receiver — silently drops alerts
+      # --- Uncomment to send alerts to ntfy ---
+      # - name: 'ntfy'
+      #   webhook_configs:
+      #     - url: 'http://ntfy.ntfy.svc.cluster.local/homelab-alerts'
+      #       send_resolved: true
+
+# =============================================================================
+# Grafana — metrics visualization and dashboards
+# =============================================================================
+grafana:
+  enabled: true
+
+  replicas: 1
+
+  # Admin password — CHANGE THIS before deploying!
+  adminPassword: "homelab-grafana"  # Change via: kubectl patch secret ... or Grafana UI
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Persistent storage for Grafana's database (dashboards saved in UI, etc.)
+  # Note: dashboards defined as code (ConfigMaps) survive restarts without this
+  persistence:
+    enabled: true
+    storageClassName: local-path
+    size: 2Gi
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - grafana.homelab.local
+    path: /
+
+  # Pre-load useful dashboards from grafana.com
+  # These are community dashboards imported automatically on startup
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      # Kubernetes cluster overview
+      kubernetes-cluster:
+        gnetId: 7249    # Grafana.com dashboard ID
+        revision: 1
+        datasource: Prometheus
+      # Node metrics (CPU, RAM, disk, network per node)
+      node-exporter:
+        gnetId: 1860    # Very popular node_exporter dashboard
+        revision: 37
+        datasource: Prometheus
+      # ingress-nginx metrics
+      nginx-ingress:
+        gnetId: 9614
+        revision: 1
+        datasource: Prometheus
+
+  # Default data source — Prometheus (pre-configured by the chart)
+  sidecar:
+    dashboards:
+      enabled: true  # Auto-load dashboards from ConfigMaps with the right label
+    datasources:
+      enabled: true
+
+# =============================================================================
+# kube-state-metrics — exports Kubernetes object state as Prometheus metrics
+# (pod status, deployment replicas, node conditions, etc.)
+# =============================================================================
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# =============================================================================
+# Prometheus Node Exporter — exports host-level metrics
+# (CPU usage, memory, disk I/O, network stats for the VM itself)
+# =============================================================================
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# =============================================================================
+# Default scraping rules — keep all enabled for full observability
+# =============================================================================
+# These control whether kube-prometheus-stack scrapes various K8s components
+kubeApiServer:
+  enabled: true   # API server metrics (request rates, latency)
+
+kubeControllerManager:
+  enabled: true   # Controller manager metrics
+
+kubeScheduler:
+  enabled: true   # Scheduler metrics (scheduling latency, queue depth)
+
+kubeProxy:
+  enabled: true   # kube-proxy metrics
+
+kubelet:
+  enabled: true   # Kubelet metrics (pod stats, volume stats)
+
+coreDns:
+  enabled: true   # CoreDNS metrics (DNS query rates, errors)
+
+kubeEtcd:
+  # K3s uses embedded SQLite, not etcd — disable to avoid scrape errors
+  enabled: false

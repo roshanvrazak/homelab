@@ -1,0 +1,71 @@
+# =============================================================================
+# ArgoCD — System Application Manifest
+# Sync Wave: -1 (deploys BEFORE user apps)
+# =============================================================================
+#
+# This Application tells ArgoCD to manage itself using the Helm values in
+# system/argocd/values.yaml. This is called "self-management" in ArgoCD:
+# ArgoCD manages its own Helm release via GitOps.
+#
+# Sync Waves:
+# ArgoCD deploys Applications in "waves" — lower numbers deploy first.
+# We use wave -1 for all system apps so they're ready before user apps (wave 0).
+# Order within wave -1 is: ArgoCD → ingress-nginx → cert-manager → monitoring
+# (ArgoCD uses sync-wave on individual resources within an Application for ordering)
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    # Sync wave -1 means this deploys before wave 0 (user apps)
+    # Lower number = earlier deployment
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/CHANGEME/homelab.git
+    targetRevision: HEAD
+    path: system/argocd  # Contains: namespace.yaml and values.yaml
+
+    # We have a mix of plain YAML (namespace.yaml) and Helm values here.
+    # ArgoCD handles this by treating the directory as a Helm chart source
+    # when a Chart.yaml is present, or raw YAML when it's not.
+    # For the values.yaml to work, we reference the chart separately:
+    helm:
+      releaseName: argocd
+      chart: argo-cd
+      version: "7.7.3"
+      repo: https://argoproj.github.io/argo-helm
+      valueFiles:
+        - values.yaml  # Relative to the path above (system/argocd/values.yaml)
+
+  # ALTERNATIVE SOURCE FORMAT: if the above doesn't work, use this pattern:
+  # sources:
+  #   - repoURL: https://argoproj.github.io/argo-helm
+  #     chart: argo-cd
+  #     targetRevision: "7.7.3"
+  #     helm:
+  #       releaseName: argocd
+  #       valueFiles:
+  #         - $values/system/argocd/values.yaml
+  #   - repoURL: https://github.com/CHANGEME/homelab.git
+  #     targetRevision: HEAD
+  #     ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

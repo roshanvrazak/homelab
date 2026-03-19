@@ -1,0 +1,129 @@
+# =============================================================================
+# cert-manager Helm Values — Single-Node Homelab Configuration
+# Chart: cert-manager/cert-manager
+# Version: 1.16.2
+# Docs: https://cert-manager.io/docs/
+# =============================================================================
+#
+# cert-manager automates TLS certificate management in Kubernetes.
+# It can issue certificates from Let's Encrypt, self-signed CAs, Vault, etc.
+#
+# In this homelab:
+#   - We use Let's Encrypt STAGING for testing (no rate limits, but not trusted)
+#   - A commented-out production issuer is included — enable when ready
+#   - For local-only access (homelab.local), self-signed certs are fine too
+#
+# NOTE: Let's Encrypt requires a publicly routable domain and port 80/443
+# accessible from the internet (HTTP-01 challenge) OR DNS API access (DNS-01).
+# For a purely local homelab on .local domain, Let's Encrypt WON'T work.
+# The ClusterIssuer configs below are included for reference/future use if
+# you ever expose services publicly via a real domain.
+#
+# For now, we don't use TLS (just HTTP). Uncomment the ingress TLS sections
+# in other values files when you're ready.
+#
+# RAM target: ~50MB
+# =============================================================================
+
+# Install CRDs (CustomResourceDefinitions) as part of the Helm chart
+# This is needed so Kubernetes knows about Certificate, ClusterIssuer, etc.
+# Alternative: install CRDs separately with kubectl before installing the chart
+installCRDs: true
+
+# Single replica — no HA needed
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+# Webhook component validates Certificate and Issuer objects
+webhook:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# cainjector manages CA bundle injection into webhook configurations
+cainjector:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Prometheus metrics
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: false  # Enable after kube-prometheus-stack is running
+
+# =============================================================================
+# ClusterIssuers — created separately as YAML manifests
+# =============================================================================
+# cert-manager itself doesn't include issuer config in the chart values.
+# We create ClusterIssuers as separate Kubernetes objects.
+#
+# The ClusterIssuers are defined below as a comment for reference.
+# To apply them manually:
+#   kubectl apply -f - <<'EOF'
+#   <paste the YAML below>
+#   EOF
+#
+# ---
+# Let's Encrypt STAGING ClusterIssuer
+# (Use for testing — certificates are NOT trusted by browsers)
+# ---
+# apiVersion: cert-manager.io/v1
+# kind: ClusterIssuer
+# metadata:
+#   name: letsencrypt-staging
+# spec:
+#   acme:
+#     # Staging ACME server — no rate limits, safe for testing
+#     server: https://acme-staging-v02.api.letsencrypt.org/directory
+#     email: your-email@example.com  # Replace with your email
+#     privateKeySecretRef:
+#       name: letsencrypt-staging-account-key
+#     solvers:
+#       - http01:
+#           ingress:
+#             class: nginx  # Must match your ingress controller
+# ---
+# Let's Encrypt PRODUCTION ClusterIssuer
+# (Uncomment when ready — trusted certificates, rate limited)
+# ---
+# apiVersion: cert-manager.io/v1
+# kind: ClusterIssuer
+# metadata:
+#   name: letsencrypt-prod
+# spec:
+#   acme:
+#     server: https://acme-v02.api.letsencrypt.org/directory
+#     email: your-email@example.com  # Replace with your email
+#     privateKeySecretRef:
+#       name: letsencrypt-prod-account-key
+#     solvers:
+#       - http01:
+#           ingress:
+#             class: nginx
+# ---
+# Self-signed ClusterIssuer (works for .local domains, not LE-compatible)
+# ---
+# apiVersion: cert-manager.io/v1
+# kind: ClusterIssuer
+# metadata:
+#   name: selfsigned
+# spec:
+#   selfSigned: {}

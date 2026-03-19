@@ -1,0 +1,198 @@
+# =============================================================================
+# Homepage Helm Values — Single-Node Homelab Configuration
+# Chart: jameswynn/homepage (community chart)
+# Docs: https://gethomepage.dev/
+# =============================================================================
+#
+# Homepage is a modern, highly customizable dashboard for your homelab.
+# It auto-discovers Kubernetes services via annotations and can display:
+#   - Service status (is it up or down?)
+#   - Stats from services that expose APIs (Grafana, ArgoCD, Gitea, etc.)
+#   - Custom bookmarks, widgets, and info cards
+#
+# RAM target: ~50MB
+# =============================================================================
+
+image:
+  repository: ghcr.io/gethomepage/homepage
+  tag: v0.9.10
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# =============================================================================
+# Ingress
+# =============================================================================
+ingress:
+  main:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - host: homepage.homelab.local
+        paths:
+          - path: /
+            pathType: Prefix
+
+# =============================================================================
+# RBAC — needed for Kubernetes service discovery
+# Homepage needs permission to list services and pods to show their status
+# =============================================================================
+serviceAccount:
+  create: true
+
+enableRbac: true  # Creates ClusterRole allowing homepage to read K8s resources
+
+# =============================================================================
+# Homepage Configuration
+# These are mounted as ConfigMaps into the container
+# =============================================================================
+config:
+  # -------------------------------------------------------------------------
+  # bookmarks.yaml — quick links shown in the bookmarks section
+  # -------------------------------------------------------------------------
+  bookmarks:
+    - Homelab:
+        - GitHub Repo:
+            - abbr: GH
+              href: "https://github.com/CHANGEME/homelab"
+        - Proxmox:
+            - abbr: PVE
+              href: "http://192.168.0.65:8006"
+
+    - Development:
+        - GitHub:
+            - abbr: GH
+              href: "https://github.com"
+        - Kubernetes Docs:
+            - abbr: K8s
+              href: "https://kubernetes.io/docs"
+        - ArgoCD Docs:
+            - abbr: ACD
+              href: "https://argo-cd.readthedocs.io"
+
+  # -------------------------------------------------------------------------
+  # services.yaml — services displayed on the dashboard
+  # -------------------------------------------------------------------------
+  services:
+    - Infrastructure:
+        - ArgoCD:
+            href: "http://argocd.homelab.local"
+            description: GitOps continuous delivery
+            icon: argocd.png
+            # Widget pulls live data from ArgoCD API
+            widget:
+              type: argocd
+              url: "http://argocd-server.argocd.svc.cluster.local"
+              key: ""  # Add an ArgoCD API token here for live stats
+
+        - Grafana:
+            href: "http://grafana.homelab.local"
+            description: Metrics and dashboards
+            icon: grafana.png
+            widget:
+              type: grafana
+              url: "http://kube-prometheus-stack-grafana.monitoring.svc.cluster.local"
+              username: admin
+              password: "homelab-grafana"  # Must match monitoring values.yaml
+
+        - Prometheus:
+            href: "http://prometheus.homelab.local"
+            description: Metrics collection
+            icon: prometheus.png
+
+    - Applications:
+        - Gitea:
+            href: "http://gitea.homelab.local"
+            description: Self-hosted Git server
+            icon: gitea.png
+            widget:
+              type: gitea
+              url: "http://gitea-http.gitea.svc.cluster.local:3000"
+              key: ""  # Add a Gitea API token for live stats
+
+        - ntfy:
+            href: "http://ntfy.homelab.local"
+            description: Push notifications
+            icon: ntfy.png
+
+  # -------------------------------------------------------------------------
+  # widgets.yaml — top-level info widgets (clock, K8s stats, etc.)
+  # -------------------------------------------------------------------------
+  widgets:
+    # Current date and time
+    - datetime:
+        text_size: xl
+        format:
+          dateStyle: long
+          timeStyle: short
+          hour12: false
+
+    # Kubernetes cluster resource usage
+    - kubernetes:
+        cluster:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+          label: "homelab"
+        nodes:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+
+    # System resources of the node running Homepage
+    - resources:
+        backend: resources
+        expanded: true
+        cpu: true
+        memory: true
+        disk:
+          - /
+
+  # -------------------------------------------------------------------------
+  # kubernetes.yaml — Kubernetes service discovery settings
+  # -------------------------------------------------------------------------
+  kubernetes:
+    # Auto-discover services that have homepage annotations
+    # Add annotations to any service to show it in Homepage:
+    #   gethomepage.dev/enabled: "true"
+    #   gethomepage.dev/name: "My Service"
+    #   gethomepage.dev/description: "What it does"
+    #   gethomepage.dev/group: "Applications"
+    #   gethomepage.dev/icon: "myservice.png"
+    mode: cluster  # Use cluster-wide service discovery (requires RBAC)
+
+  # -------------------------------------------------------------------------
+  # settings.yaml — global Homepage settings
+  # -------------------------------------------------------------------------
+  settings:
+    title: "Homelab Dashboard"
+    startUrl: "http://homepage.homelab.local"
+    background:
+      blur: sm  # Slight blur on background image
+      saturate: 50
+      brightness: 50
+      opacity: 50
+    theme: dark   # dark or light
+    color: slate  # Color scheme: slate, gray, zinc, neutral, stone, red, etc.
+
+    layout:
+      Infrastructure:
+        style: row
+        columns: 3
+      Applications:
+        style: row
+        columns: 3
+
+    # Show status dots (green/red) for each service
+    showStats: true
+    hideVersion: false

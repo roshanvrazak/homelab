@@ -1,0 +1,93 @@
+# =============================================================================
+# App of Apps — Root ArgoCD Application
+# =============================================================================
+#
+# This is the ENTRY POINT for GitOps. This single Application, when applied
+# to the cluster, causes ArgoCD to discover and deploy EVERYTHING ELSE.
+#
+# How the App of Apps pattern works:
+#   1. You apply THIS file to the cluster (done by install-argocd.sh)
+#   2. ArgoCD watches the argocd/ directory in your repo
+#   3. It finds all the Application YAML files in argocd/system/ and argocd/apps/
+#   4. It creates those Applications in the argocd namespace
+#   5. Each child Application then deploys its own service (ArgoCD, Grafana, etc.)
+#
+# Benefits:
+#   - ONE apply command bootstraps your entire cluster
+#   - All configuration is in Git — no manual kubectl commands needed
+#   - Self-healing: ArgoCD will revert any manual changes to match the repo
+#   - Auditable: every change goes through Git (PR review, commit history)
+#
+# IMPORTANT: Replace https://github.com/CHANGEME/homelab.git with your actual
+# GitHub repo URL before applying. Or run setup-github-repo.sh which does it
+# for you automatically.
+#
+# Reference: https://argo-cd.readthedocs.io/en/stable/operator-manual/cluster-bootstrapping/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homelab
+  namespace: argocd
+
+  # The finalizer ensures that when you delete this Application, ArgoCD also
+  # deletes all the child Applications it manages (cascade delete).
+  # Without this, deleting the root app leaves orphaned child apps.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+  labels:
+    app.kubernetes.io/name: homelab
+    app.kubernetes.io/managed-by: argocd
+
+spec:
+  # The ArgoCD project this Application belongs to.
+  # "default" project allows deploying to any namespace — fine for homelab.
+  # In production, you'd create custom projects with tighter RBAC.
+  project: default
+
+  source:
+    # IMPORTANT: Replace this placeholder with your actual GitHub repo URL
+    repoURL: https://github.com/CHANGEME/homelab.git
+
+    # targetRevision controls which Git ref to track:
+    # - HEAD: always use the latest commit on the default branch
+    # - main: same as HEAD if main is your default branch
+    # - v1.2.3: pin to a specific tag (more stable for production)
+    targetRevision: HEAD
+
+    # The directory containing child Application manifests.
+    # ArgoCD will recursively discover Application YAML files here.
+    path: argocd
+
+    # Directory-specific options
+    directory:
+      # Recurse into subdirectories (argocd/system/ and argocd/apps/)
+      recurse: true
+
+  destination:
+    # Deploy Application objects into the argocd namespace
+    # (Applications are K8s objects that live in the argocd namespace)
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      # selfHeal: if someone manually changes a resource in the cluster,
+      # ArgoCD automatically reverts it to match the Git state.
+      # This enforces GitOps — Git is always the source of truth.
+      selfHeal: true
+
+      # prune: if you remove a manifest from Git, ArgoCD deletes the
+      # corresponding Kubernetes resource. Without this, removed manifests
+      # leave orphaned resources in the cluster.
+      prune: true
+
+    syncOptions:
+      # Allow ArgoCD to create namespaces that don't exist yet
+      - CreateNamespace=true
+
+      # Use server-side apply (more efficient for large manifests)
+      # Helps avoid "metadata.annotations too long" errors
+      - ServerSideApply=false

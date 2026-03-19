@@ -1,0 +1,72 @@
+# =============================================================================
+# .gitignore — Homelab Repository
+# =============================================================================
+# Files to NEVER commit to a public or private git repository.
+# These often contain credentials, private keys, or machine-specific state.
+# =============================================================================
+
+# --- Kubernetes ---
+# Kubeconfig files contain cluster certificates and credentials
+*.kubeconfig
+kubeconfig
+kubeconfig.yaml
+.kube/
+
+# --- Secrets and credentials ---
+*.key          # Private keys (TLS, SSH, etc.)
+*.pem          # PEM-encoded certificates/keys
+*.p12          # PKCS#12 certificate bundles
+*.pfx          # Same as .p12
+*.crt          # Certificates (usually safe, but exclude to be safe)
+*.cert
+secrets/       # Any secrets directory
+secret.yaml
+*-secret.yaml
+*secret*.yaml
+
+# --- Environment files ---
+.env           # Environment variable files (often contain passwords/tokens)
+.env.*         # .env.local, .env.production, etc.
+*.env
+*.secret
+
+# --- Terraform (if you add IaC later) ---
+*.tfstate
+*.tfstate.backup
+.terraform/
+terraform.tfvars   # Often contains sensitive variable values
+
+# --- Ansible (if you add automation later) ---
+*.vault
+ansible/vault-password
+
+# --- Editor and OS ---
+.DS_Store          # macOS directory metadata
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db          # Windows thumbnail cache
+desktop.ini        # Windows folder settings
+
+# --- IDE files ---
+.idea/             # JetBrains IDEs (IntelliJ, GoLand, etc.)
+.vscode/           # VS Code workspace settings (personal settings)
+*.swp              # Vim swap files
+*.swo
+*~                 # Backup files
+
+# --- Build artifacts ---
+dist/
+build/
+*.log              # Log files (can be large and contain sensitive info)
+
+# --- Helm ---
+# Helm chart dependencies (downloaded, not committed)
+charts/            # Helm chart dependencies directory
+*.tgz             # Helm chart tarballs
+
+# --- Temporary files ---
+*.tmp
+*.temp
+.tmp/

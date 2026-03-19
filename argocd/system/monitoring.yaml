@@ -1,0 +1,58 @@
+# =============================================================================
+# kube-prometheus-stack — System Application Manifest
+# Sync Wave: -1
+# =============================================================================
+#
+# The monitoring stack (Prometheus + Grafana + Alertmanager) is a system app
+# because it provides observability for all other services.
+#
+# Note: kube-prometheus-stack installs a LOT of CRDs (CustomResourceDefinitions)
+# like PrometheusRule, ServiceMonitor, etc. ArgoCD may show these as "out of sync"
+# on first install because CRDs are cluster-scoped and take time to propagate.
+# This is normal — wait for the sync to complete, then manually trigger another sync.
+#
+# The "Replace" sync option below handles CRD updates properly.
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: "67.4.0"
+      helm:
+        releaseName: kube-prometheus-stack
+        # Skip CRDs in Helm (we manage them via ArgoCD's Replace option below)
+        skipCrds: false
+        valueFiles:
+          - $values/system/monitoring/values.yaml
+
+    - repoURL: https://github.com/CHANGEME/homelab.git
+      targetRevision: HEAD
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      # ServerSideApply handles large CRDs that exceed annotation size limits
+      - ServerSideApply=true
+      # Replace CRDs rather than patching them (required for kube-prometheus-stack upgrades)
+      - Replace=true

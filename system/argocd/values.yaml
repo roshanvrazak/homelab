@@ -1,0 +1,185 @@
+# =============================================================================
+# ArgoCD Helm Values — Single-Node Homelab Configuration
+# Chart: argo/argo-cd
+# Version: 7.7.3
+# Docs: https://argo-cd.readthedocs.io/en/stable/
+# =============================================================================
+#
+# ArgoCD is a declarative GitOps CD tool for Kubernetes.
+# It watches a Git repository and ensures the cluster state matches it.
+#
+# RAM target: ~300MB total
+# CPU target: minimal (bursts during sync operations)
+#
+# In a production HA setup, each ArgoCD component would have multiple replicas.
+# For a single-node homelab, we use 1 replica everywhere and reduce resource
+# requests significantly. ArgoCD is very tolerant of low resources.
+# =============================================================================
+
+global:
+  # Log format — json is easier to parse with tools like jq, text is more readable
+  logging:
+    format: text
+    level: info
+
+# =============================================================================
+# ArgoCD Server — the main API and UI component
+# =============================================================================
+server:
+  replicas: 1  # Single node — no HA needed
+
+  # Disable TLS on the server itself; we terminate TLS at the ingress level.
+  # The ingress-nginx will handle HTTPS. ArgoCD behind an ingress should use
+  # --insecure flag to avoid double-TLS issues.
+  extraArgs:
+    - --insecure
+
+  resources:
+    requests:
+      cpu: 50m       # 50 millicores — very light baseline
+      memory: 64Mi   # ArgoCD server is lean when idle
+    limits:
+      cpu: 500m      # Allow bursting to 0.5 cores during heavy sync operations
+      memory: 256Mi  # Enough for the UI + API without wasteful over-allocation
+
+  # Ingress configuration — exposes ArgoCD at argocd.homelab.local
+  ingress:
+    enabled: true
+    ingressClassName: nginx  # Use the ingress-nginx controller we deploy separately
+
+    annotations:
+      # Tell nginx to use HTTP backend (ArgoCD is running without TLS due to --insecure)
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+      # Allow large request bodies (needed for ArgoCD app syncs)
+      nginx.ingress.kubernetes.io/proxy-body-size: "0"
+
+    hosts:
+      - argocd.homelab.local
+
+    # TLS is commented out — using HTTP only for local homelab
+    # Uncomment and configure cert-manager if you want HTTPS
+    # tls:
+    #   - secretName: argocd-server-tls
+    #     hosts:
+    #       - argocd.homelab.local
+
+  metrics:
+    enabled: true  # Enable Prometheus metrics scraping
+    serviceMonitor:
+      enabled: false  # Set to true if kube-prometheus-stack is installed first
+      # (ArgoCD boots before monitoring in our setup, so we enable this manually later)
+
+# =============================================================================
+# Application Controller — reconciles desired vs actual cluster state
+# =============================================================================
+controller:
+  replicas: 1  # Single replica — HA mode uses sharding which we don't need
+
+  resources:
+    requests:
+      cpu: 100m     # Controller does more CPU work (diffing, reconciling)
+      memory: 128Mi
+    limits:
+      cpu: 1000m    # Allow up to 1 full core during large sync operations
+      memory: 512Mi
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false
+
+# =============================================================================
+# Repo Server — clones and caches Git repositories
+# =============================================================================
+repoServer:
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false
+
+# =============================================================================
+# Application Set Controller — generates Applications from templates
+# =============================================================================
+applicationSet:
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false
+
+# =============================================================================
+# Notifications Controller — sends alerts (Slack, email, etc.)
+# Disabled by default — enable when you've configured a notification target
+# =============================================================================
+notifications:
+  enabled: false  # Enable later when you want alerts via ntfy/Slack/email
+
+# =============================================================================
+# Redis — ArgoCD's caching layer for git repo data
+# =============================================================================
+redis:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi  # Redis for ArgoCD is very lean — it's just a cache
+
+# =============================================================================
+# Dex — OIDC identity provider for SSO (disabled — using local admin user)
+# For a homelab, the built-in admin user is sufficient.
+# Enable dex if you want to log in with GitHub OAuth, etc.
+# =============================================================================
+dex:
+  enabled: false  # Disable SSO for simplicity — use admin/password login
+
+# =============================================================================
+# Config — ArgoCD global configuration
+# =============================================================================
+configs:
+  params:
+    # Tell ArgoCD to connect to the in-cluster API server directly
+    server.insecure: true  # Required when running behind an HTTP ingress
+
+  # Repository credentials — not needed if using public repos
+  # Add credentials here for private repos:
+  # credentialTemplates:
+  #   github-ssh:
+  #     url: https://github.com
+  #     sshPrivateKey: |
+  #       -----BEGIN OPENSSH PRIVATE KEY-----
+  #       ...
+
+  # ArgoCD manages resources in these namespaces by default (argocd itself)
+  # To allow ArgoCD to deploy to other namespaces, they just need to exist
+
+  cm:
+    # URL shown in ArgoCD notifications/webhooks
+    url: "http://argocd.homelab.local"
+
+    # Allow ArgoCD to manage resources across all namespaces
+    # (needed for our App of Apps pattern which deploys to multiple namespaces)
+    application.resourceTrackingMethod: annotation
+
+    # Helm version to use by default (v3 is current standard)
+    helm.version: "v3"

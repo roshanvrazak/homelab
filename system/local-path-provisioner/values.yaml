@@ -1,0 +1,55 @@
+# =============================================================================
+# local-path-provisioner Helm Values
+# Chart: (built into K3s — managed here as a reference/override)
+# Docs: https://github.com/rancher/local-path-provisioner
+# =============================================================================
+#
+# local-path-provisioner is the default storage provider included with K3s.
+# It dynamically creates PersistentVolumes using directories on the host node.
+#
+# How it works:
+#   1. A pod requests a PVC (PersistentVolumeClaim) with storageClass: local-path
+#   2. local-path-provisioner creates a directory on the host at:
+#      /var/lib/rancher/k3s/storage/<pvc-name>/
+#   3. This directory is bind-mounted into the pod as the PVC volume
+#
+# Limitations:
+#   - Data lives on ONE node (fine for single-node homelabs)
+#   - No replication (a node failure = data loss — back up regularly!)
+#   - Pods must be scheduled to the same node (always true in single-node)
+#   - No storage quotas (a runaway pod could fill the disk)
+#
+# Why NOT Longhorn/Ceph?
+#   - Longhorn requires multiple nodes for replication
+#   - Ceph requires 3+ nodes minimum
+#   - Both have high overhead that would eat into our 12GB RAM budget
+#   - local-path-provisioner is perfectly adequate for a single-node homelab
+#
+# NOTE: K3s already installs local-path-provisioner automatically.
+# This values file documents the configuration for reference.
+# If you're managing it via ArgoCD, you can deploy the Helm chart standalone.
+# =============================================================================
+
+# Storage path on the host where PVC data is stored
+# Default is /var/lib/rancher/k3s/storage/ — fine for our use case
+# Change this if you want to put storage on a different mount point/disk
+storageClass:
+  create: true
+  name: local-path
+  defaultClass: true  # Make this the default StorageClass for all PVCs
+  reclaimPolicy: Delete  # When a PVC is deleted, the data directory is deleted too
+                          # Change to Retain if you want to manually manage old PVCs
+
+# The provisioner pod manages PVC lifecycle
+nodePathMap:
+  - node: DEFAULT      # Apply to all nodes (single node in our case)
+    paths:
+      - /var/lib/rancher/k3s/storage  # Host path where PV directories are created
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi

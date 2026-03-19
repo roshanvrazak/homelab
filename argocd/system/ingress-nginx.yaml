@@ -1,0 +1,55 @@
+# =============================================================================
+# ingress-nginx — System Application Manifest
+# Sync Wave: -1 (deploys with other system apps, before user apps)
+# =============================================================================
+#
+# ingress-nginx must be deployed before applications that create Ingress objects,
+# because the Ingress controller needs to be running to process Ingress rules.
+#
+# Deployment order within system wave (-1):
+#   ingress-nginx deploys first (other apps need it to be accessible)
+#   cert-manager deploys next (issues certs for ingress TLS)
+#   monitoring and argocd deploy alongside
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+  project: default
+
+  sources:
+    # Source 1: The Helm chart from the official ingress-nginx Helm repo
+    - repoURL: https://kubernetes.github.io/ingress-nginx
+      chart: ingress-nginx
+      targetRevision: "4.11.3"
+      helm:
+        releaseName: ingress-nginx
+        valueFiles:
+          # $values is a reference to Source 2 below (our Git repo)
+          # This pattern (multiple sources) lets us keep values in our repo
+          # while pulling the chart from the official Helm repository
+          - $values/system/ingress-nginx/values.yaml
+
+    # Source 2: Our Git repo (used only for the values file reference above)
+    - repoURL: https://github.com/CHANGEME/homelab.git
+      targetRevision: HEAD
+      ref: values  # "ref: values" makes this repo available as "$values" above
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ingress-nginx
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
