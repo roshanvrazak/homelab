@@ -124,87 +124,87 @@ resource "proxmox_virtual_environment_file" "cloud_init_user_data" {
     # The cloud-init user-data YAML content
     # Cloud-init spec: https://cloudinit.readthedocs.io/en/latest/reference/examples.html
     data = <<-USERDATA
-      #cloud-config
-      # ==========================================================================
-      # Cloud-init user-data for ${var.vm_name}
-      # Applied on first boot by the cloud-init service
-      # ==========================================================================
+    #cloud-config
+    # ==========================================================================
+    # Cloud-init user-data for ${var.vm_name}
+    # Applied on first boot by the cloud-init service
+    # ==========================================================================
 
-      # Set the hostname
-      hostname: ${var.vm_name}
-      fqdn: ${var.vm_name}.homelab.local
-      manage_etc_hosts: true
+    # Set the hostname
+    hostname: ${var.vm_name}
+    fqdn: ${var.vm_name}.homelab.local
+    manage_etc_hosts: true
 
-      # Create the default user
-      users:
-        - name: ${var.vm_user}
-          groups: [sudo, adm, docker]
-          shell: /bin/bash
-          sudo: ALL=(ALL) NOPASSWD:ALL
-          # Inject the SSH public key for passwordless login
-          ssh_authorized_keys:
-            - ${var.vm_ssh_public_key}
-          # Lock the password (SSH key only) — more secure
-          lock_passwd: ${var.vm_password == "" ? "true" : "false"}
-          %{if var.vm_password != ""}
-          # Password is hashed with SHA-512 — never stored in plaintext
-          # Generate hash: openssl passwd -6 'yourpassword'
-          passwd: ${var.vm_password}
-          %{endif}
+    # Create the default user
+    users:
+      - name: ${var.vm_user}
+        groups: [sudo, adm, docker]
+        shell: /bin/bash
+        sudo: ALL=(ALL) NOPASSWD:ALL
+        # Inject the SSH public key for passwordless login
+        ssh_authorized_keys:
+          - ${var.vm_ssh_public_key}
+        # Lock the password (SSH key only) — more secure
+        lock_passwd: ${var.vm_password == "" ? "true" : "false"}
+        %{if var.vm_password != ""}
+        # Password is hashed with SHA-512 — never stored in plaintext
+        # Generate hash: openssl passwd -6 'yourpassword'
+        passwd: ${var.vm_password}
+        %{endif}
 
-      # Disable root SSH login (security best practice)
-      disable_root: true
+    # Disable root SSH login (security best practice)
+    disable_root: true
 
-      # SSH hardening
-      ssh_pwauth: false  # Disable password auth (key-only)
+    # SSH hardening
+    ssh_pwauth: false  # Disable password auth (key-only)
 
-      # Install packages on first boot
-      # These are the same packages bootstrap.sh installs — having them
-      # pre-installed means bootstrap.sh runs faster
-      packages:
-        - qemu-guest-agent  # Proxmox integration: graceful shutdown, IP display
-        - curl              # Download K3s installer
-        - git               # Required by ArgoCD and bootstrap
-        - open-iscsi        # iSCSI support for storage drivers
-        - nfs-common        # NFS client library
+    # Install packages on first boot
+    # These are the same packages bootstrap.sh installs — having them
+    # pre-installed means bootstrap.sh runs faster
+    packages:
+      - qemu-guest-agent  # Proxmox integration: graceful shutdown, IP display
+      - curl              # Download K3s installer
+      - git               # Required by ArgoCD and bootstrap
+      - open-iscsi        # iSCSI support for storage drivers
+      - nfs-common        # NFS client library
 
-      # Update package list and upgrade all packages on first boot
-      package_update: true
-      package_upgrade: true
+    # Update package list and upgrade all packages on first boot
+    package_update: true
+    package_upgrade: true
 
-      # Commands to run on first boot (after packages are installed)
-      runcmd:
-        # Enable and start QEMU guest agent so Proxmox can communicate with VM
-        - systemctl enable --now qemu-guest-agent
+    # Commands to run on first boot (after packages are installed)
+    runcmd:
+      # Enable and start QEMU guest agent so Proxmox can communicate with VM
+      - systemctl enable --now qemu-guest-agent
 
-        # Disable swap permanently — Kubernetes requires swap to be off
-        # swapoff -a: disable for current session
-        - swapoff -a
-        # Comment out swap in /etc/fstab: persistent across reboots
-        - sed -i '/\sswap\s/s/^/#/' /etc/fstab
+      # Disable swap permanently — Kubernetes requires swap to be off
+      # swapoff -a: disable for current session
+      - swapoff -a
+      # Comment out swap in /etc/fstab: persistent across reboots
+      - sed -i '/\sswap\s/s/^/#/' /etc/fstab
 
-        # Grow the root partition to use all available disk space
-        # Cloud images come with a small root partition; we need to resize it
-        # to use the full 200GB disk we provisioned
-        - growpart /dev/vda 1 || true       # Grow partition 1 on virtio disk
-        - resize2fs /dev/vda1 || true        # Resize ext4 filesystem
-        - pvresize /dev/vda1 || true         # Resize LVM physical volume (if LVM)
+      # Grow the root partition to use all available disk space
+      # Cloud images come with a small root partition; we need to resize it
+      # to use the full 200GB disk we provisioned
+      - growpart /dev/vda 1 || true       # Grow partition 1 on virtio disk
+      - resize2fs /dev/vda1 || true        # Resize ext4 filesystem
+      - pvresize /dev/vda1 || true         # Resize LVM physical volume (if LVM)
 
-        # Set timezone to UTC (consistent, avoids daylight saving issues)
-        - timedatectl set-timezone UTC
+      # Set timezone to UTC (consistent, avoids daylight saving issues)
+      - timedatectl set-timezone UTC
 
-        # Log completion so we can check cloud-init ran successfully
-        - echo "Cloud-init complete for ${var.vm_name}" >> /var/log/cloud-init-homelab.log
+      # Log completion so we can check cloud-init ran successfully
+      - echo "Cloud-init complete for ${var.vm_name}" >> /var/log/cloud-init-homelab.log
 
-      # Final message shown in cloud-init logs when complete
-      final_message: |
-        ================================================
-        K3s homelab VM is ready!
-        Hostname: ${var.vm_name}
-        User:     ${var.vm_user}
-        Next:     ssh ${var.vm_user}@${var.vm_ip}
-                  then: bash scripts/bootstrap.sh
-        ================================================
+    # Final message shown in cloud-init logs when complete
+    final_message: |
+      ================================================
+      K3s homelab VM is ready!
+      Hostname: ${var.vm_name}
+      User:     ${var.vm_user}
+      Next:     ssh ${var.vm_user}@${var.vm_ip}
+                then: bash scripts/bootstrap.sh
+      ================================================
     USERDATA
   }
 }
