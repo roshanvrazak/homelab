@@ -30,11 +30,13 @@ secret.yaml
 *.env
 *.secret
 
-# --- Terraform (if you add IaC later) ---
-*.tfstate
-*.tfstate.backup
-.terraform/
-terraform.tfvars   # Often contains sensitive variable values
+# --- Terraform ---
+*.tfstate              # Terraform state file — contains sensitive data and resource IDs
+*.tfstate.backup       # Terraform state backup
+.terraform/            # Provider plugins downloaded by terraform init (large, reproducible)
+# NOTE: .terraform.lock.hcl is NOT ignored — commit it for reproducible provider versions
+terraform.tfvars       # Your actual variable values — contains API tokens and SSH keys
+# NOTE: terraform.tfvars.example IS committed — it has no real secrets
 
 # --- Ansible (if you add automation later) ---
 *.vault
@@ -52,6 +54,7 @@ desktop.ini        # Windows folder settings
 # --- IDE files ---
 .idea/             # JetBrains IDEs (IntelliJ, GoLand, etc.)
 .vscode/           # VS Code workspace settings (personal settings)
+.claude/            # Hypothetical IDE configuration directory
 *.swp              # Vim swap files
 *.swo
 *~                 # Backup files

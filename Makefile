@@ -3,6 +3,12 @@
 # =============================================================================
 #
 # Usage:
+#   make tf-init             — Initialise Terraform (download providers)
+#   make tf-plan             — Preview VM changes without applying
+#   make tf-apply            — Provision the Proxmox VM with Terraform
+#   make tf-destroy          — Destroy the Proxmox VM (DESTRUCTIVE)
+#   make tf-output           — Show Terraform outputs (IP, SSH command, etc.)
+#
 #   make bootstrap          — Install K3s and Helm on the VM
 #   make argocd REPO=<url>  — Install ArgoCD and configure App of Apps
 #   make status             — Show cluster, pod, and ArgoCD app status
@@ -29,6 +35,9 @@ NC    := \033[0m
 # HELP — auto-generated from ## comments
 # =============================================================================
 
+# Directory containing Terraform configuration
+TERRAFORM_DIR := terraform
+
 .PHONY: help
 help: ## Show this help message
 	@echo ""
@@ -37,6 +46,62 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  $(BLUE)%-20s$(NC) %s\n", $$1, $$2}'
 	@echo ""
+
+# =============================================================================
+# TERRAFORM — Proxmox VM Provisioning
+# =============================================================================
+
+.PHONY: tf-init
+tf-init: ## Initialise Terraform and download the bpg/proxmox provider
+	@echo -e "$(BLUE)[INFO]$(NC) Initialising Terraform..."
+	@if [ ! -f "$(TERRAFORM_DIR)/terraform.tfvars" ]; then \
+		echo -e "$(YELLOW)[WARN]$(NC) terraform.tfvars not found."; \
+		echo -e "$(YELLOW)[WARN]$(NC) Copy the example and fill in your values:"; \
+		echo -e "  cp $(TERRAFORM_DIR)/terraform.tfvars.example $(TERRAFORM_DIR)/terraform.tfvars"; \
+		echo -e "  nano $(TERRAFORM_DIR)/terraform.tfvars"; \
+	fi
+	@cd $(TERRAFORM_DIR) && terraform init
+
+.PHONY: tf-plan
+tf-plan: ## Preview what Terraform will create/change (no changes applied)
+	@echo -e "$(BLUE)[INFO]$(NC) Running Terraform plan..."
+	@cd $(TERRAFORM_DIR) && terraform plan
+
+.PHONY: tf-apply
+tf-apply: ## Provision the Proxmox VM (will prompt for confirmation)
+	@echo -e "$(BLUE)[INFO]$(NC) Applying Terraform configuration..."
+	@cd $(TERRAFORM_DIR) && terraform apply
+
+.PHONY: tf-apply-auto
+tf-apply-auto: ## Provision the VM without confirmation prompt (use with care)
+	@echo -e "$(YELLOW)[WARN]$(NC) Applying without confirmation..."
+	@cd $(TERRAFORM_DIR) && terraform apply -auto-approve
+
+.PHONY: tf-destroy
+tf-destroy: ## DESTROY the Proxmox VM — all data will be lost (prompts for confirmation)
+	@echo -e "$(RED)WARNING: This will DELETE the VM and ALL its data from Proxmox!$(NC)"
+	@read -p "Type 'yes' to confirm destruction: " confirm; \
+	if [ "$$confirm" != "yes" ]; then \
+		echo "Destruction cancelled."; \
+		exit 0; \
+	fi
+	@cd $(TERRAFORM_DIR) && terraform destroy
+
+.PHONY: tf-output
+tf-output: ## Show Terraform outputs (VM IP, SSH command, next steps)
+	@cd $(TERRAFORM_DIR) && terraform output
+
+.PHONY: tf-state
+tf-state: ## List all resources tracked in Terraform state
+	@cd $(TERRAFORM_DIR) && terraform state list
+
+.PHONY: tf-validate
+tf-validate: ## Validate Terraform configuration syntax
+	@cd $(TERRAFORM_DIR) && terraform validate && echo -e "$(GREEN)Configuration is valid$(NC)"
+
+.PHONY: tf-fmt
+tf-fmt: ## Format Terraform files to canonical style
+	@cd $(TERRAFORM_DIR) && terraform fmt -recursive
 
 # =============================================================================
 # BOOTSTRAP — Install K3s and prerequisites on the VM

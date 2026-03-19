@@ -1,0 +1,109 @@
+# =============================================================================
+# terraform.tfvars.example — Example Variable Values
+# =============================================================================
+#
+# USAGE:
+#   cp terraform.tfvars.example terraform.tfvars
+#   # Edit terraform.tfvars with your actual values
+#   terraform init
+#   terraform plan
+#   terraform apply
+#
+# SECURITY:
+#   terraform.tfvars is in .gitignore — NEVER commit it.
+#   It contains your Proxmox API token and SSH key (sensitive values).
+#   The .example file (this one) is safe to commit — it has no real secrets.
+#
+# =============================================================================
+
+# =============================================================================
+# Proxmox connection
+# =============================================================================
+
+# Your Proxmox web UI URL
+proxmox_endpoint = "https://192.168.0.65:8006"
+
+# API token for Terraform to authenticate with Proxmox
+# Format: USER@REALM!TOKEN_ID=TOKEN_SECRET
+# Create it in Proxmox UI → Datacenter → Permissions → API Tokens
+# See docs/setup-terraform.md for step-by-step instructions
+proxmox_api_token = "root@pam!terraform=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# Skip TLS cert verification (true = skip, because Proxmox uses self-signed cert)
+proxmox_insecure = true
+
+# The name of your Proxmox node (shown in the left sidebar of the Proxmox UI)
+# Common values: pve, proxmox, or your server's hostname
+proxmox_node = "pve"
+
+# SSH username for Proxmox host (needed for cloud-init snippet upload)
+proxmox_ssh_username = "root"
+
+# SSH password for Proxmox host (optional if using SSH agent)
+# Leave as empty string if your SSH key is loaded in ssh-agent
+proxmox_ssh_password = ""
+
+# =============================================================================
+# VM identity
+# =============================================================================
+
+# Proxmox VM ID — must be unique, check existing IDs in Proxmox UI
+vm_id   = 100
+vm_name = "k3s-node"
+
+# =============================================================================
+# VM compute resources
+# =============================================================================
+
+vm_cores        = 4      # vCPU cores
+vm_memory_mb    = 12288  # RAM in MB (12GB = 12 × 1024)
+vm_disk_size_gb = 200    # Disk size in GB
+
+# Storage pool names — check in Proxmox UI → Datacenter → Storage
+# local-lvm: default block storage for VM disks (supports thin provisioning)
+# local:     directory storage for ISOs and snippets
+vm_storage     = "local-lvm"
+vm_storage_iso = "local"
+
+# =============================================================================
+# VM networking
+# =============================================================================
+
+vm_bridge  = "vmbr0"          # Proxmox network bridge (default LAN bridge)
+vm_ip      = "192.168.0.100"  # Static IP — choose one not used by DHCP
+vm_netmask = 24               # Subnet prefix (/24 = 255.255.255.0)
+vm_gateway = "192.168.0.1"    # Your router's IP
+
+vm_dns_servers = ["1.1.1.1", "8.8.8.8"]
+
+# =============================================================================
+# Cloud-init VM user
+# =============================================================================
+
+vm_user = "ubuntu"
+
+# Optional password (fallback for console access if SSH fails)
+# Leave empty to disable password auth entirely (SSH key only)
+vm_password = ""
+
+# Your SSH public key — paste the contents of ~/.ssh/id_ed25519.pub
+# Generate if you don't have one: ssh-keygen -t ed25519 -C "homelab"
+vm_ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... your-email@example.com"
+
+# =============================================================================
+# Ubuntu cloud image
+# =============================================================================
+
+# Ubuntu 24.04 LTS (Noble Numbat) cloud image
+ubuntu_cloud_image_url = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+
+# Optional SHA256 checksum for integrity verification
+# Get it with: curl -s https://cloud-images.ubuntu.com/noble/current/SHA256SUMS | grep amd64.img
+# Leave empty to skip verification
+ubuntu_cloud_image_checksum = ""
+
+# =============================================================================
+# VM tags (optional)
+# =============================================================================
+
+vm_tags = ["k3s", "homelab", "terraform"]
